@@ -20,15 +20,36 @@ st.markdown("""
     
     html, body, [class*="css"]  {
         font-family: 'Inter', sans-serif;
+        color: #0f172a;
     }
 
     /* Cards */
     .stMetric {
-        background-color: #ffffff;
-        border: 1px solid #e0e7ff;
+        background-color: #f8fafc !important; /* Slate 50 */
+        border: 1px solid #cbd5e1 !important; /* Slate 300 */
         padding: 15px;
         border-radius: 12px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        transition: transform 0.2s;
+    }
+    
+    .stMetric:hover {
+        border-color: #3b82f6 !important;
+        transform: translateY(-2px);
+    }
+
+    /* Metric Labels (Title) */
+    [data-testid="stMetricLabel"] {
+        color: #475569 !important; /* Slate 600 */
+        font-size: 0.95rem !important;
+        font-weight: 600 !important;
+    }
+
+    /* Metric Values */
+    [data-testid="stMetricValue"] {
+        color: #0f172a !important; /* Slate 900 - Almost Black */
+        font-weight: 800 !important;
+        font-size: 1.8rem !important;
     }
 
     /* Headers */
@@ -216,7 +237,7 @@ if selected_page == "Market Matrix":
              if search_query:
                  st.info("No competitors found matching your search.")
     else:
-        st.error("No data available. If using 'Other...', try a specific city name.")
+        st.error("No data available. If using 'Other...', try a specific city name or check your internet connection for AI search.")
 
 # --- PAGE 2: COMPETITOR DETAILS ---
 elif selected_page == "Competitor Details":

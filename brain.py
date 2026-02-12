@@ -54,9 +54,12 @@ class MarketIntelligenceBrain:
             return DFW_HLRL_LOCKS
         
         # Level 3: AI Discovery for other markets
+        # We explicitly ask for ESTIMATES to ensure the schema is satisfied even if data is sparse.
         prompt = f"""
-        Analyze the {dma} DMA market for Dental Service Organizations (DSOs) and implant centers.
-        Identify the top 10-15 competitors.
+        Conduct a market analysis for the "{dma}" DMA (Designated Market Area). 
+        1. Use Google Search to identify the top 10-15 Dental Service Organizations (DSOs) and key implant competitors operating in this specific region.
+        2. For each competitor, ESTIMATE key operational metrics if exact public data is unavailable. Use the typical size of these chains in similar markets as a baseline for estimation.
+        3. Search for pricing (dentures, implants) for these brands. If specific local pricing is missing, use national averages for that brand or "TBD".
         
         Return a JSON list of objects matching this exact schema:
         - dsoName (string)
