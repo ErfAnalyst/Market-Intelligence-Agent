@@ -1,0 +1,9 @@
+{
+  "name": "AD&I Market Intelligence Agent",
+  "description": "Advanced market research dashboard for AD&I/DDS powered by Gemini AI Agent 260206.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}
