@@ -44,27 +44,29 @@ class MarketIntelligenceBrain:
         """
         Returns the Competitive Matrix.
         Logic: Checks for L1 Locks (DFW). If found, returns static data.
-        Else, asks AI to generate estimates.
+        Else, asks AI to generate estimates for other DMAs.
         """
         # Normalize input string to handle user variations
         normalized_dma = dma.lower().strip()
         if "dallas" in normalized_dma or "dfw" in normalized_dma:
-            # Level 1 Lock triggered
-            time.sleep(0.5) # Simulate processing
+            # Level 1 Lock triggered - Return the absolute truth table
+            time.sleep(0.5) 
             return DFW_HLRL_LOCKS
         
         # Level 3: AI Discovery for other markets
         prompt = f"""
-        Analyze the {dma} DMA. Identify top dental competitors.
-        Return a JSON list of objects with keys:
+        Analyze the {dma} DMA market for Dental Service Organizations (DSOs) and implant centers.
+        Identify the top 10-15 competitors.
+        
+        Return a JSON list of objects matching this exact schema:
         - dsoName (string)
-        - geographicFocus (National/Regional/Local)
-        - clinicCount (int)
-        - dentistCount (int)
-        - surgeonCount (int)
-        - priceDenture (number or "TBD")
-        - priceTier1Low (number or "TBD")
-        - priceTier1High (number or "TBD")
+        - geographicFocus (string: "National", "Regional", or "Local")
+        - clinicCount (integer: est number of clinics in this DMA)
+        - dentistCount (integer: est total dentists in this DMA)
+        - surgeonCount (integer: est oral surgeons/implantologists)
+        - priceDenture (number: price for economy denture, or -1 if unknown)
+        - priceTier1Low (number: price for Tier 1 economy plus low range, or -1 if unknown)
+        - priceTier1High (number: price for Tier 1 economy plus high range, or -1 if unknown)
         """
         
         try:
@@ -74,12 +76,61 @@ class MarketIntelligenceBrain:
                 config=types.GenerateContentConfig(
                     system_instruction=SYSTEM_INSTRUCTION,
                     response_mime_type="application/json",
-                    tools=[types.Tool(google_search=types.GoogleSearch())]
+                    # We use Google Search to get real data for the other markets
+                    tools=[types.Tool(google_search=types.GoogleSearch())],
+                    response_schema={
+                        "type": "ARRAY",
+                        "items": {
+                            "type": "OBJECT",
+                            "properties": {
+                                "dsoName": {"type": "STRING"},
+                                "geographicFocus": {"type": "STRING"},
+                                "clinicCount": {"type": "INTEGER"},
+                                "dentistCount": {"type": "INTEGER"},
+                                "surgeonCount": {"type": "INTEGER"},
+                                "priceDenture": {"type": "NUMBER"},
+                                "priceTier1Low": {"type": "NUMBER"},
+                                "priceTier1High": {"type": "NUMBER"}
+                            },
+                            "required": ["dsoName", "geographicFocus", "clinicCount", "dentistCount", "surgeonCount"]
+                        }
+                    }
                 )
             )
-            return json.loads(response.text)
+            
+            data = json.loads(response.text)
+            
+            # Post-processing to match the UI's TBD logic and calculate ratio
+            processed_data = []
+            for item in data:
+                # Calculate ratio if missing
+                clinics = item.get("clinicCount", 1)
+                dentists = item.get("dentistCount", 0)
+                if clinics < 1: clinics = 1
+                
+                ratio = round(dentists / clinics, 2)
+                
+                # Handle prices
+                p_denture = item.get("priceDenture", -1)
+                p_t1_l = item.get("priceTier1Low", -1)
+                p_t1_h = item.get("priceTier1High", -1)
+
+                processed_data.append({
+                    "dsoName": item.get("dsoName", "Unknown"),
+                    "geographicFocus": item.get("geographicFocus", "Local"),
+                    "clinicCount": clinics,
+                    "dentistCount": dentists,
+                    "dentistsPerClinic": ratio,
+                    "surgeonCount": item.get("surgeonCount", 0),
+                    "priceDenture": "TBD" if p_denture == -1 else p_denture,
+                    "priceTier1Low": "TBD" if p_t1_l == -1 else p_t1_l,
+                    "priceTier1High": "TBD" if p_t1_h == -1 else p_t1_h
+                })
+                
+            return processed_data
+
         except Exception as e:
-            print(f"Error: {e}")
+            print(f"Error in brain.py: {e}")
             return []
 
     def get_competitor_details(self, dma: str, dso_name: str):

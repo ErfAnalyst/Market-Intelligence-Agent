@@ -28,13 +28,7 @@ st.markdown("""
         border: 1px solid #e0e7ff;
         padding: 15px;
         border-radius: 12px;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-        transition: transform 0.2s;
-    }
-    .stMetric:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-        border-color: #3b82f6;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
 
     /* Headers */
@@ -50,70 +44,64 @@ st.markdown("""
     .section-header {
         color: #1e293b;
         font-weight: 600;
-        font-size: 1.5rem;
-        margin-top: 2rem;
+        font-size: 1.3rem;
+        margin-top: 1.5rem;
         margin-bottom: 1rem;
         border-left: 4px solid #3b82f6;
         padding-left: 1rem;
     }
-
-    /* Tables */
-    [data-testid="stDataFrame"] {
-        border: 1px solid #e2e8f0;
-        border-radius: 8px;
-        overflow: hidden;
-    }
-
-    /* Sidebar */
-    [data-testid="stSidebar"] {
-        background-color: #f8fafc;
-        border-right: 1px solid #e2e8f0;
-    }
     
-    /* Buttons */
-    .stButton>button {
+    /* Info Box */
+    .info-box {
+        background-color: #f0f9ff;
+        border: 1px solid #bae6fd;
+        padding: 1rem;
         border-radius: 8px;
-        font-weight: 600;
+        color: #0369a1;
+        margin-bottom: 1rem;
     }
 </style>
 """, unsafe_allow_html=True)
 
 # --- SIDEBAR ---
 with st.sidebar:
-    st.markdown("## 🦷 AD&I Intelligence")
-    st.markdown("**Market Strategist Agent 260206**")
-    st.markdown("---")
+    st.title("🦷 AD&I Intelligence")
+    st.caption("Market Strategist Agent 260206")
+    st.divider()
     
     selected_page = st.radio(
         "Navigation", 
-        ["Market Matrix", "Competitor Details", "Research Lab"],
-        captions=["Competitive Landscape", "Deep Dive Data", "AI Analysis"]
+        ["Market Matrix", "Competitor Details", "Research Lab"]
     )
     
+    st.divider()
     st.markdown("### 📍 Location Scope")
     
     dma_options = ["Dallas DFW DMA", "Houston", "Austin", "San Antonio", "Other..."]
     dma_selection = st.selectbox("Select Market", dma_options)
     
+    selected_dma = None
     if dma_selection == "Other...":
-        selected_dma = st.text_input("Enter Market Name (e.g. Phoenix, AZ)")
+        user_input = st.text_input("Enter Market Name", placeholder="e.g. Phoenix, AZ")
+        if user_input:
+            selected_dma = user_input
     else:
         selected_dma = dma_selection
 
     if selected_dma:
-        st.success(f"Context: {selected_dma}")
-    else:
-        st.warning("Please select or enter a market.")
+        st.success(f"Locked: {selected_dma}")
 
 # --- PAGE 1: MARKET MATRIX ---
 if selected_page == "Market Matrix":
     st.markdown(f'<div class="main-title">Competitive Market Matrix</div>', unsafe_allow_html=True)
-    st.caption(f"Analyzing competitive density and pricing architecture for **{selected_dma}**")
     
     if not selected_dma:
+        st.info("👈 Please select or enter a market in the sidebar to begin analysis.")
         st.stop()
 
-    with st.spinner(f"Agent 260206 is analyzing {selected_dma}..."):
+    st.markdown(f"**Context:** Analyzing competitive density and pricing architecture for **{selected_dma}**")
+
+    with st.spinner(f"Agent 260206 is building the matrix for {selected_dma}..."):
         data = brain.get_market_matrix(selected_dma)
     
     if data:
@@ -130,15 +118,16 @@ if selected_page == "Market Matrix":
         k1, k2, k3, k4 = st.columns(4)
         
         with k1:
-            st.metric("Competitive Set", len(df), delta_color="off")
+            st.metric("Competitive Set", len(df))
         with k2:
             st.metric("Avg Clinics/DSO", round(df['clinicCount'].mean(), 1))
         with k3:
             total_surgeons = df['surgeonCount'].sum()
-            st.metric("Implant Surgeons", total_surgeons, help="Total identified Oral Surgeons in competitive set")
+            st.metric("Implant Surgeons", total_surgeons)
         with k4:
             # Calc avg price ignoring 0s
-            avg_price = chart_df[chart_df['priceDenture'] > 0]['priceDenture'].mean()
+            valid_prices = chart_df[chart_df['priceDenture'] > 0]['priceDenture']
+            avg_price = valid_prices.mean() if not valid_prices.empty else 0
             st.metric("Avg Economy Denture", f"${avg_price:,.0f}")
 
         # 2. Main Data Table
@@ -146,7 +135,7 @@ if selected_page == "Market Matrix":
         
         # Color highlighting for AD&I
         def highlight_adi(row):
-            if "AD&I" in row['dsoName'] or "Affordable" in row['dsoName']:
+            if "AD&I" in str(row['dsoName']) or "Affordable" in str(row['dsoName']):
                 return ['background-color: #e0f2fe; color: #0c4a6e; font-weight: bold'] * len(row)
             return [''] * len(row)
 
@@ -181,6 +170,9 @@ if selected_page == "Market Matrix":
         }
         melted_df['Tier'] = melted_df['Tier'].map(tier_names)
 
+        # Filter out 0 prices from chart
+        melted_df = melted_df[melted_df['Price'] > 0]
+
         fig = px.bar(
             melted_df, 
             x='dsoName', 
@@ -192,53 +184,71 @@ if selected_page == "Market Matrix":
                 "Tier 1 (Low)": "#3b82f6",    # Blue
                 "Tier 1 (High)": "#1e40af"    # Dark Blue
             },
-            height=500
+            height=500,
+            template="plotly_white" # Ensuring clean white background
         )
         
         fig.update_layout(
-            plot_bgcolor='white',
-            paper_bgcolor='white',
             font={'family': "Inter, sans-serif"},
             xaxis={'title': None, 'tickangle': -45},
-            yaxis={'title': 'Price ($)', 'gridcolor': '#f1f5f9'},
+            yaxis={'title': 'Price ($)'},
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
         )
         
         st.plotly_chart(fig, use_container_width=True)
     else:
-        st.error("No data available. Please check the market name.")
+        st.error("No data available. If using 'Other...', try a specific city name.")
 
 # --- PAGE 2: COMPETITOR DETAILS ---
 elif selected_page == "Competitor Details":
     st.markdown(f'<div class="main-title">Competitor Deep Dive</div>', unsafe_allow_html=True)
     
     if not selected_dma:
-        st.warning("Select a market in the sidebar first.")
+        st.warning("Please select a market in the sidebar first.")
         st.stop()
 
     with st.spinner("Loading Context..."):
         matrix_data = brain.get_market_matrix(selected_dma)
     
+    if not matrix_data:
+        st.error("No market data found.")
+        st.stop()
+
     dso_names = [d['dsoName'] for d in matrix_data]
     
-    col_nav, col_main = st.columns([1, 3])
+    col_nav, col_main = st.columns([1, 2.5])
     
     with col_nav:
         st.markdown("### Select Competitor")
-        selected_dso = st.radio("List", dso_names, label_visibility="collapsed")
+        selected_dso = st.radio("Competitor List", dso_names, label_visibility="collapsed")
+        
+        st.divider()
         
         if selected_dso:
             sel_data = next((item for item in matrix_data if item["dsoName"] == selected_dso), None)
             if sel_data:
-                st.info(f"""
-                **Quick Stats**
-                
-                🏥 Clinics: {sel_data['clinicCount']}
-                
-                🦷 Dentists: {sel_data['dentistCount']}
-                
-                👨‍⚕️ Surgeons: {sel_data['surgeonCount']}
-                """)
+                 # Quick Stats Card
+                 st.markdown(f"""
+                 <div class="info-box">
+                    <strong>📊 Quick Stats</strong><br>
+                    🏥 Clinics: {sel_data['clinicCount']}<br>
+                    🦷 Dentists: {sel_data['dentistCount']}<br>
+                    👨‍⚕️ Surgeons: {sel_data['surgeonCount']}
+                 </div>
+                 """, unsafe_allow_html=True)
+                 
+                 # Price Mini Chart (Graphic on the left fix)
+                 st.caption("Price Reference")
+                 p_items = []
+                 if sel_data['priceDenture'] != 'TBD': p_items.append({'Label': 'Econ', 'Price': sel_data['priceDenture']})
+                 if sel_data['priceTier1Low'] != 'TBD': p_items.append({'Label': 'T1 Low', 'Price': sel_data['priceTier1Low']})
+                 
+                 if p_items:
+                     p_df = pd.DataFrame(p_items)
+                     fig_mini = px.bar(p_df, x="Price", y="Label", orientation='h', text="Price", template="plotly_white")
+                     fig_mini.update_traces(marker_color='#3b82f6', texttemplate='$%{text:.0f}')
+                     fig_mini.update_layout(xaxis={'visible': False}, yaxis={'title': None}, height=200, margin=dict(l=0, r=0, t=0, b=0))
+                     st.plotly_chart(fig_mini, use_container_width=True)
 
     with col_main:
         if selected_dso:
@@ -247,26 +257,6 @@ elif selected_page == "Competitor Details":
             with st.spinner(f"Gathering intelligence on {selected_dso}..."):
                 details = brain.get_competitor_details(selected_dma, selected_dso)
             
-            # Pricing Visual
-            sel_data = next((item for item in matrix_data if item["dsoName"] == selected_dso), None)
-            if sel_data:
-                 # Filter 0s for chart
-                 p_items = []
-                 if sel_data['priceDenture'] != 'TBD': p_items.append({'Label': 'Econ Denture', 'Price': sel_data['priceDenture']})
-                 if sel_data['priceTier1Low'] != 'TBD': p_items.append({'Label': 'Tier 1 Low', 'Price': sel_data['priceTier1Low']})
-                 if sel_data['priceTier1High'] != 'TBD': p_items.append({'Label': 'Tier 1 High', 'Price': sel_data['priceTier1High']})
-                 
-                 if p_items:
-                     p_df = pd.DataFrame(p_items)
-                     fig_p = px.bar(p_df, x="Price", y="Label", orientation='h', title="Price Points", text="Price")
-                     fig_p.update_traces(marker_color='#3b82f6', texttemplate='$%{text:.0f}', textposition='outside')
-                     fig_p.update_layout(
-                         plot_bgcolor='white',
-                         xaxis={'visible': False},
-                         yaxis={'title': None}
-                     )
-                     st.plotly_chart(fig_p, use_container_width=True)
-
             # Lists
             st.markdown("### 🧬 Personnel Forensics")
             c1, c2 = st.columns(2)
@@ -288,12 +278,12 @@ elif selected_page == "Competitor Details":
                     st.caption("No public records found.")
 
             st.markdown("---")
-            st.caption(f"**Source Trace:** {details.get('evidenceSource', 'AI Generated Estimation')}")
+            st.info(f"**Evidence Source:** {details.get('evidenceSource', 'AI Generated Estimation')}")
 
 # --- PAGE 3: RESEARCH LAB ---
 elif selected_page == "Research Lab":
     st.markdown(f'<div class="main-title">Field Research Lab</div>', unsafe_allow_html=True)
-    st.info("💡 **Pro Tip:** Ask for specific trends like 'Why is Heartland cheaper in Tier 1?' or 'Generate a hypothesis on Aspen's strategy'.")
+    st.caption("Ask Agent 260206 specific questions about market trends.")
 
     # Chat UI
     if "messages" not in st.session_state:
