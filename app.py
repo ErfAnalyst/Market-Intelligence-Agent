@@ -107,13 +107,13 @@ if selected_page == "Market Matrix":
     if data:
         df = pd.DataFrame(data)
         
-        # Data Cleaning for Visuals
-        chart_df = df.copy()
+        # Data Cleaning for Visuals (Global)
+        chart_df_global = df.copy()
         cols_to_clean = ['priceDenture', 'priceTier1Low', 'priceTier1High']
         for col in cols_to_clean:
-            chart_df[col] = pd.to_numeric(chart_df[col], errors='coerce').fillna(0)
+            chart_df_global[col] = pd.to_numeric(chart_df_global[col], errors='coerce').fillna(0)
 
-        # 1. High-Level KPI Cards
+        # 1. High-Level KPI Cards (Always shows total market)
         st.markdown('<div class="section-header">Market Vitals</div>', unsafe_allow_html=True)
         k1, k2, k3, k4 = st.columns(4)
         
@@ -126,12 +126,22 @@ if selected_page == "Market Matrix":
             st.metric("Implant Surgeons", total_surgeons)
         with k4:
             # Calc avg price ignoring 0s
-            valid_prices = chart_df[chart_df['priceDenture'] > 0]['priceDenture']
+            valid_prices = chart_df_global[chart_df_global['priceDenture'] > 0]['priceDenture']
             avg_price = valid_prices.mean() if not valid_prices.empty else 0
             st.metric("Avg Economy Denture", f"${avg_price:,.0f}")
 
-        # 2. Main Data Table
+        # 2. Main Data Table (With Search)
         st.markdown('<div class="section-header">Level 1: Competitive Scan</div>', unsafe_allow_html=True)
+        
+        # Search Filter
+        search_col, _ = st.columns([1, 2])
+        with search_col:
+            search_query = st.text_input("Filter by Name", placeholder="🔍 Search DSO...", label_visibility="collapsed")
+        
+        # Apply Filter
+        filtered_df = df.copy()
+        if search_query:
+            filtered_df = filtered_df[filtered_df['dsoName'].str.contains(search_query, case=False, na=False)]
         
         # Color highlighting for AD&I
         def highlight_adi(row):
@@ -140,7 +150,7 @@ if selected_page == "Market Matrix":
             return [''] * len(row)
 
         st.dataframe(
-            df.style.apply(highlight_adi, axis=1),
+            filtered_df.style.apply(highlight_adi, axis=1),
             column_config={
                 "dsoName": st.column_config.TextColumn("DSO / Practice", width="medium"),
                 "geographicFocus": "Geo Focus",
@@ -157,45 +167,54 @@ if selected_page == "Market Matrix":
             height=500
         )
 
-        # 3. Advanced Visualization
-        st.markdown('<div class="section-header">Pricing Architecture</div>', unsafe_allow_html=True)
-        
-        melted_df = chart_df.melt(id_vars=['dsoName'], value_vars=['priceDenture', 'priceTier1Low', 'priceTier1High'], var_name='Tier', value_name='Price')
-        
-        # Custom mapping for cleaner legend names
-        tier_names = {
-            "priceDenture": "Economy Denture", 
-            "priceTier1Low": "Tier 1 (Low)", 
-            "priceTier1High": "Tier 1 (High)"
-        }
-        melted_df['Tier'] = melted_df['Tier'].map(tier_names)
+        # 3. Advanced Visualization (Uses filtered data)
+        if not filtered_df.empty:
+            st.markdown('<div class="section-header">Pricing Architecture</div>', unsafe_allow_html=True)
+            
+            # Prepare chart data from filtered_df
+            chart_df_filtered = filtered_df.copy()
+            for col in cols_to_clean:
+                chart_df_filtered[col] = pd.to_numeric(chart_df_filtered[col], errors='coerce').fillna(0)
 
-        # Filter out 0 prices from chart
-        melted_df = melted_df[melted_df['Price'] > 0]
+            melted_df = chart_df_filtered.melt(id_vars=['dsoName'], value_vars=['priceDenture', 'priceTier1Low', 'priceTier1High'], var_name='Tier', value_name='Price')
+            
+            # Custom mapping for cleaner legend names
+            tier_names = {
+                "priceDenture": "Economy Denture", 
+                "priceTier1Low": "Tier 1 (Low)", 
+                "priceTier1High": "Tier 1 (High)"
+            }
+            melted_df['Tier'] = melted_df['Tier'].map(tier_names)
 
-        fig = px.bar(
-            melted_df, 
-            x='dsoName', 
-            y='Price', 
-            color='Tier', 
-            barmode='group',
-            color_discrete_map={
-                "Economy Denture": "#93c5fd", # Light Blue
-                "Tier 1 (Low)": "#3b82f6",    # Blue
-                "Tier 1 (High)": "#1e40af"    # Dark Blue
-            },
-            height=500,
-            template="plotly_white" # Ensuring clean white background
-        )
-        
-        fig.update_layout(
-            font={'family': "Inter, sans-serif"},
-            xaxis={'title': None, 'tickangle': -45},
-            yaxis={'title': 'Price ($)'},
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
+            # Filter out 0 prices from chart
+            melted_df = melted_df[melted_df['Price'] > 0]
+
+            fig = px.bar(
+                melted_df, 
+                x='dsoName', 
+                y='Price', 
+                color='Tier', 
+                barmode='group',
+                color_discrete_map={
+                    "Economy Denture": "#93c5fd", # Light Blue
+                    "Tier 1 (Low)": "#3b82f6",    # Blue
+                    "Tier 1 (High)": "#1e40af"    # Dark Blue
+                },
+                height=500,
+                template="plotly_white" # Ensuring clean white background
+            )
+            
+            fig.update_layout(
+                font={'family': "Inter, sans-serif"},
+                xaxis={'title': None, 'tickangle': -45},
+                yaxis={'title': 'Price ($)'},
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+             if search_query:
+                 st.info("No competitors found matching your search.")
     else:
         st.error("No data available. If using 'Other...', try a specific city name.")
 
